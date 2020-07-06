@@ -7,6 +7,7 @@ from rest_framework import status
 
 CREATE_USER_URL = reverse('user:create')
 TOKEN_URL = reverse('user:token')
+ME_URL = reverse('user:me')
 
 
 def create_user(**kwargs):
@@ -71,3 +72,38 @@ class PublicUserApiTest(TestCase):
 
         self.assertEqual(res.status_code, status.HTTP_400_BAD_REQUEST)
         self.assertNotIn('token', res.data)
+
+    def test_retrieve_user_unauthorized(self):
+        res = self.client.get(ME_URL)
+
+        self.assertEqual(res.status_code, status.HTTP_401_UNAUTHORIZED)
+
+
+class PrivateUserApiTest(TestCase):
+
+    def setUp(self):
+        payload = {
+            'email': 'sahil@sahil.com',
+            'password': 'sahil123',
+        }
+        self.user = create_user(**payload)
+        self.client = APIClient()
+        self.client.force_authenticate(self.user)
+
+    def test_retrieve_profile_success(self):
+        res = self.client.get(ME_URL)
+
+        self.assertEqual(res.status_code, status.HTTP_200_OK)
+        self.assertEqual(res.data, {'email': self.user.email})
+
+    def test_post_me_not_allowed(self):
+        res = self.client.post(ME_URL)
+
+        self.assertEqual(res.status_code, status.HTTP_405_METHOD_NOT_ALLOWED)
+
+    def test_update_user_profile(self):
+        payload = {'password': 'sahilsahil'}
+        res = self.client.patch(ME_URL, payload)
+        self.user.refresh_from_db()
+
+        self.assertTrue(self.user.check_password(payload['password']))
